@@ -564,11 +564,13 @@ void UFlareSpacecraftStateManager::SetPlayerRollAngularVelocityJoystick(float Va
 	}
 }
 
-FVector UFlareSpacecraftStateManager::GetLinearTargetVelocity() const
+FFlareEngineTarget UFlareSpacecraftStateManager::GetLinearEngineTarget() const
 {
 	if (IsPiloted)
 	{
-		return Spacecraft->GetPilot()->GetLinearTargetVelocity();
+		FFlareEngineTarget Target;
+		Target.SetVelocity(Spacecraft->Airframe->GetComponentToWorld().GetRotation().Inverse().RotateVector(Spacecraft->GetPilot()->GetLinearTargetVelocity()));
+		return Target;
 	}
 	else
 	{
@@ -584,10 +586,16 @@ FVector UFlareSpacecraftStateManager::GetLinearTargetVelocity() const
 			PlayerForwardVelocity = Spacecraft->Airframe->GetComponentToWorld().GetRotation().RotateVector(LocalPlayerForwardVelocity);
 		}
 
-		FVector LocalPlayerLateralLinearVelocity = FVector(0, PlayerManualLinearVelocity.Y, PlayerManualLinearVelocity.Z);
-		FVector FinalLinearVelocity = PlayerForwardVelocity + Spacecraft->Airframe->GetComponentToWorld().GetRotation().RotateVector(LocalPlayerLateralLinearVelocity);
+		FVector FinalLinearVelocity = PlayerForwardVelocity;
 
-		// Check if we should apply anticollision to the player ship ?
+		// TODO
+/*		if(LinearVelocityIsJoystick)
+		{
+			if(FinalLinearVelocity.
+			LastPlayerLinearVelocityJoystick.X = Val;
+		}
+		*/
+
 		if (Spacecraft->IsPlayerShip())
 		{
 			UFlareGameUserSettings* MyGameSettings = Cast<UFlareGameUserSettings>(GEngine->GetGameUserSettings());
@@ -597,7 +605,29 @@ FVector UFlareSpacecraftStateManager::GetLinearTargetVelocity() const
 			}
 		}
 
-		return FinalLinearVelocity;
+		FFlareEngineTarget Target;
+		Target.SetVelocity(Spacecraft->Airframe->GetComponentToWorld().GetRotation().Inverse().RotateVector(FinalLinearVelocity));
+
+		if(!LinearVelocityIsJoystick && PlayerManualLinearVelocity.X != 0)
+		{
+			Target.XVelocityControl = false;
+			Target.Target.X = PlayerManualLinearVelocity.X;
+		}
+
+		if(PlayerManualLinearVelocity.Y != 0)
+		{
+			Target.YVelocityControl = false;
+			Target.Target.Y = PlayerManualLinearVelocity.Y;
+		}
+
+		if(PlayerManualLinearVelocity.Z != 0)
+		{
+			Target.ZVelocityControl = false;
+			Target.Target.Z = PlayerManualLinearVelocity.Z;
+		}
+
+
+		return Target;
 	}
 }
 
