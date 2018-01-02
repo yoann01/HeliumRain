@@ -118,6 +118,13 @@ void AFlareBomb::OnLaunched(AFlareSpacecraft* Target)
 	DetachFromActor(DetachRules);
 	ParentWeapon->GetSpacecraft()->GetGame()->GetActiveSector()->RegisterBomb(this);
 
+	// Missile cam
+	if (WeaponDescription->WeaponCharacteristics.BombCharacteristics.MaxBurnDuration > 0)
+	{
+		FLOG("AFlareBomb::OnLaunched : missile, registering camera");
+		ParentWeapon->GetSpacecraft()->GetStateManager()->RegisterMissile(this);
+	}
+
 	// Spin to stabilize
 	FVector FrontVector = BombComp-> GetComponentTransform().TransformVector(FVector(1, 0, 0));
 	BombComp->SetPhysicsAngularVelocityInDegrees(FrontVector * WeaponDescription->WeaponCharacteristics.BombCharacteristics.DropAngularVelocity);

@@ -209,5 +209,10 @@ public:
 		return Paused;
 	}
 
+	inline float GetLifeTime()
+	{
+		return BombData.LifeTime;
+	}
+
 	bool IsActive() const;
 };

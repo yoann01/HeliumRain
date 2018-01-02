@@ -157,6 +157,13 @@ void AFlareSpacecraftPawn::SetPhysicalVisibility(bool Visibility)
 	}
 }
 
+void AFlareSpacecraftPawn::SetCameraTarget(AActor* Target)
+{
+	FAttachmentTransformRules Rules(FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	CameraContainerYaw->AttachToComponent(Target->GetRootComponent(), Rules);
+}
+
+
 /*----------------------------------------------------
 	Customization
 ----------------------------------------------------*/

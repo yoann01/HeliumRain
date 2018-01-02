@@ -11,6 +11,7 @@
 #include "FlarePilotHelper.h"
 #include "FlareSpacecraft.h"
 #include "FlareShipPilot.h"
+#include "FlareBomb.h"
 
 DECLARE_CYCLE_STAT(TEXT("FlareStateManager Tick"), STAT_FlareStateManager_Tick, STATGROUP_Flare);
 DECLARE_CYCLE_STAT(TEXT("FlareStateManager Camera"), STAT_FlareStateManager_Camera, STATGROUP_Flare);
@@ -263,8 +264,24 @@ void UFlareSpacecraftStateManager::UpdateCamera(float DeltaSeconds)
 		Spacecraft->ConfigureInternalFixedCamera();
 		return;
 	}
+	
+	// Missile camera
+	if (ShowMissileCam)
+	{
+		FVector TargetVector = LastFiredMissile->GetTargetSpacecraft()->GetActorLocation() - LastFiredMissile->GetActorLocation();
+		FRotator LocalTargetDirection = LastFiredMissile->GetTransform().InverseTransformVectorNoScale(TargetVector).Rotation();
+		float LifetimeAlpha = FMath::Clamp(LastFiredMissile->GetLifeTime() / 5.0f, 0.0f, 1.0f);
 
-	if (Spacecraft->GetWeaponsSystem()->IsInFireDirector())
+		// Apply rotation
+		Spacecraft->SetCameraPitch(LifetimeAlpha * LocalTargetDirection.Pitch);
+		Spacecraft->SetCameraYaw(LifetimeAlpha * LocalTargetDirection.Yaw);
+
+		// Apply distance
+		float TargetDistance = FMath::Lerp(1500.0f, 3000.0f, LifetimeAlpha);
+		Spacecraft->SetCameraDistance(FMath::Min(TargetDistance, TargetVector.Size()));
+	}
+
+	else if (Spacecraft->GetWeaponsSystem()->IsInFireDirector())
 	{
 		float YawRotation = FireDirectorAngularVelocity.Z * DeltaSeconds;
 		float PitchRotation = FireDirectorAngularVelocity.Y * DeltaSeconds;
@@ -758,6 +775,66 @@ void UFlareSpacecraftStateManager::OnStatusChanged()
 	FVector FrontVector = Spacecraft->Airframe-> GetComponentTransform().TransformVector(FVector(1, 0, 0));
 	float ForwardVelocity = FVector::DotProduct(Spacecraft->GetLinearVelocity(), FrontVector);
 	PlayerManualVelocityCommand = ForwardVelocity / Spacecraft->GetNavigationSystem()->GetLinearMaxVelocity();
+}
+
+void UFlareSpacecraftStateManager::RegisterMissile(AFlareBomb* Missile)
+{
+	if (Missile && Missile->GetFiringWeapon()->GetSpacecraft()->GetCurrentTarget().SpacecraftTarget)
+	{
+		LastFiredMissile = Missile;
+		SetMissileCamState(true); // TODO : remove this if we move the feature to production
+	}
+}
+
+void UFlareSpacecraftStateManager::UnregisterMissile(AFlareBomb* Missile)
+{
+	if (LastFiredMissile == Missile)
+	{
+		LastFiredMissile = NULL;
+		SetMissileCamState(false); // TODO : remove this if we move the feature to production
+	}
+}
+
+void UFlareSpacecraftStateManager::SetMissileCamState(bool State)
+{
+	AActor* Target = NULL;
+	AFlarePlayerController* PC = Spacecraft->GetPC();
+	AFlareCockpitManager* CockpitManager = PC->GetCockpitManager();
+
+	// Pick target
+	if (State)
+	{
+		Target = LastFiredMissile;
+	}
+	else
+	{
+		Target = Spacecraft;
+	}
+
+	// Apply
+	ShowMissileCam = State;
+	Spacecraft->SetCameraTarget(Target);
+
+	// Change states
+	if (State)
+	{
+		if (PC->UseCockpit)
+		{
+			CockpitManager->OnStopFlying();
+			Spacecraft->ConfigureInternalFixedCamera();
+		}
+	}
+	else
+	{
+		// Force a reset to internal camera
+		ExternalCamera = true;
+		SetExternalCamera(false);
+
+		if (PC->UseCockpit)
+		{
+			CockpitManager->OnFlyShip(Spacecraft);
+		}
+	}
 }
 
 FVector UFlareSpacecraftStateManager::GetAngularTargetVelocity() const
